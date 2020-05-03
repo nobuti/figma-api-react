@@ -1,82 +1,87 @@
-require('dotenv').config()
+require("dotenv").config();
 
-const express = require('express')
-const fetch = require('isomorphic-fetch')
-const figma = require('./lib/figma')
+//const express = require("express");
+const fetch = require("isomorphic-fetch");
+const figma = require("./lib/figma");
 
-const canvasMap = {}
+const canvasMap = {};
 
-const app = express()
+//const app = express();
 
-function preprocessTree (canvas, node) {
+function preprocessTree(canvas, node) {
   if (!canvasMap[canvas.id]) {
     canvasMap[canvas.id] = {
       id: canvas.id,
       name: canvas.name,
       vectorMap: {},
-      vectorList: []
-    }
+      vectorList: [],
+    };
   }
 
-  const { vectorMap, vectorList } = canvasMap[canvas.id]
+  const { vectorMap, vectorList } = canvasMap[canvas.id];
 
   if (!vectorMap[node.id]) {
-    vectorMap[node.id] = node
-    vectorList.push(node.id)
+    vectorMap[node.id] = node;
+    vectorList.push(node.id);
   }
 }
 
-function preprocessCanvas (canvas) {
-  canvas.children.forEach(child => {
+function preprocessCanvas(canvas) {
+  canvas.children.forEach((child) => {
     if (child.visible !== false) {
-      preprocessTree(canvas, child)
+      preprocessTree(canvas, child);
     }
-  })
+  });
 }
 
-function selectElement (name) {
-  const [element] = Object.keys(canvasMap).filter(current => canvasMap[current].name === name)
-  return element ? canvasMap[element] : element
+function selectElement(name) {
+  const [element] = Object.keys(canvasMap).filter(
+    (current) => canvasMap[current].name === name
+  );
+  return element ? canvasMap[element] : element;
 }
 
-function processColors () {
-  const colors = selectElement('Colors')
-
-  return colors.vectorList.map(v => {
-    const node = colors.vectorMap[v]
-    return node.children.map(color => {
-      const [swatch] = color.fills
-      return {
-        name: color.name,
-        background: figma.colorString(swatch.color, swatch.opacity)
-      }
-    })
-  })
+function processColors() {
+  const colors = selectElement("Colors");
+  figma.generateColors(colors, (error) =>
+    error
+      ? console.error(error)
+      : console.log("JSON colors file generated succesfully")
+  );
 }
 
-async function figmaFileFetch () {
-  const result = await fetch(`https://api.figma.com/v1/files/${process.env.FILEID}`, {
-    method: 'GET',
-    headers: {
-      'X-Figma-Token': process.env.APIKEY
+async function figmaFileFetch() {
+  const result = await fetch(
+    `https://api.figma.com/v1/files/${process.env.FILEID}`,
+    {
+      method: "GET",
+      headers: {
+        "X-Figma-Token": process.env.APIKEY,
+      },
     }
-  })
+  );
 
-  const data = await result.json()
-  const doc = data.document
+  const data = await result.json();
+  const doc = data.document;
 
-  doc.children.forEach(canvas => canvas.visible !== false && preprocessCanvas(canvas))
+  doc.children.forEach(
+    (canvas) => canvas.visible !== false && preprocessCanvas(canvas)
+  );
 
-  return processColors()
+  return processColors();
 }
 
-app.use('/', async function (req, res, next) {
-  const result = await figmaFileFetch().catch(error => console.log(error))
-  res.send(JSON.stringify(result))
-})
+figmaFileFetch().catch((error) => console.log(error));
 
-const APP = {
-  port: 3000
-}
+// app.use("/", async function (req, res, next) {
+//   const result = await figmaFileFetch().catch((error) => console.log(error));
+//   res.send(JSON.stringify(result));
+// });
 
-app.listen(APP.port, () => console.log(`Figma api app listening at http://localhost:${APP.port}`))
+// const APP = {
+//   port: 3000,
+// };
+
+// app.listen(APP.port, () =>
+//   console.log(`Figma api app listening at http://localhost:${APP.port}`)
+// );
